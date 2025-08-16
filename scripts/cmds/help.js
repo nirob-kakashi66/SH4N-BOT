@@ -1,145 +1,95 @@
-const fs = require("fs-extra");
-const axios = require("axios");
-const path = require("path");
 const { getPrefix } = global.utils;
 const { commands, aliases } = global.GoatBot;
+
+const catboxImages = [
+  "https://files.catbox.moe/hlds7u.mp4",
+  "https://files.catbox.moe/c6ujy4.jpg",
+  "https://files.catbox.moe/ueiep7.jpg",
+  "https://files.catbox.moe/5wytj0.jpg",
+  "https://files.catbox.moe/ueiep7.jpg", // Replace or add valid image URLs
+  "https://files.catbox.moe/6mckih.mp4"
+];
+
+// Split array into n parts evenly
+function splitArray(arr, parts = 6) {
+  const len = arr.length;
+  const out = [];
+  let i = 0;
+  while (i < len) {
+    out.push(arr.slice(i, i + Math.ceil(len / parts)));
+    i += Math.ceil(len / parts);
+  }
+  return out;
+}
 
 module.exports = {
   config: {
     name: "help",
-    version: "1.18",
-    author: "ShAn", 
+    version: "2.0",
+    author: "ＮＩＲＯＢ ᶻ 𝗓 𐰁",
     countDown: 5,
     role: 0,
     shortDescription: {
-      en: "View command usage",
+      en: "kakashi - BOT help menu, split into 6 pages!",
     },
     longDescription: {
-      en: "View command usage and list all commands or commands by category",
+      en: "Shows commands with pastel style and catbox images on 6 pages.",
     },
     category: "info",
     guide: {
-      en: "{pn} / help cmdName\n{pn} -c <categoryName>",
+      en: "{pn} [1-6]",
     },
     priority: 1,
   },
 
   onStart: async function ({ message, args, event, threadsData, role }) {
-    const { threadID } = event;
-    const threadData = await threadsData.get(threadID);
-    const prefix = getPrefix(threadID);
-
-    if (args.length === 0) {
-      const categories = {};
-      let msg = "";
-
-      msg += `╔══════════════╗\n🔹 COMMAND LIST 🔹\n╚══════════════╝\n`;
-
-      for (const [name, value] of commands) {
-        if (value.config.role > 1 && role < value.config.role) continue;
-
-        const category = value.config.category || "Uncategorized";
-        categories[category] = categories[category] || { commands: [] };
-        categories[category].commands.push(name);
-      }
-
-      Object.keys(categories).forEach((category) => {
-        if (category !== "info") {
-          msg += `\n╭────────────⭓\n│『 ${category.toUpperCase()} 』`;
-
-          const names = categories[category].commands.sort();
-          names.forEach((item) => {
-            msg += `\n│💠${item}💠`;
-          });
-
-          msg += `\n╰────────⭓`;
-        }
-      });
-
-      const totalCommands = commands.size;
-      msg += `\n𝗖𝘂𝗿𝗿𝗲𝗻𝘁𝗹𝘆, 𝘁𝗵𝗲 𝗯𝗼𝘁 𝗵𝗮𝘀 ${totalCommands} 𝗰𝗼𝗺𝗺𝗮𝗻𝗱𝘀 𝘁𝗵𝗮𝘁 𝗰𝗮𝗻 𝗯𝗲 𝘂𝘀𝗲𝗱\n`;
-      msg += `\n𝗧𝘆𝗽𝗲 ${prefix}𝗵𝗲𝗹𝗽 𝗰𝗺𝗱𝗡𝗮𝗺𝗲 𝘁𝗼 𝘃𝗶𝗲𝘄 𝘁𝗵𝗲 𝗱𝗲𝘁𝗮𝗶𝗹𝘀 𝗼𝗳 𝘁𝗵𝗮𝘁 𝗰𝗼𝗺𝗺𝗮𝗻𝗱\n`;
-      msg += `\n🫧𝘽𝙊𝙏 𝙉𝘼𝙈𝙀🫧: ♡𝕮𝖍𝖔𝖈𝖔𝖑𝖆𝖙𝖊 𝕼𝖚𝖊𝖊𝖓♡`;
-      msg += `\n🔹 𝘽𝙊𝙏 𝙊𝙒𝙉𝙀𝙍 🔹`;
-      msg += `\n 	 					`;
-      msg += `\n~𝙉𝘼𝙈𝙀:✰ '𝗘𝘄'𝗿 𝗦𝗵𝗔𝗻'𝘀 ✰`;
-      msg += `\n~𝙁𝘽:https://m.facebook.com/sirana252`;
-
-      await message.reply({
-        body: msg,
-      });
-    } else if (args[0] === "-c") {
-      if (!args[1]) {
-        await message.reply("Please specify a category name.");
-        return;
-      }
-
-      const categoryName = args[1].toLowerCase();
-      const filteredCommands = Array.from(commands.values()).filter(
-        (cmd) => cmd.config.category?.toLowerCase() === categoryName
-      );
-
-      if (filteredCommands.length === 0) {
-        await message.reply(`No commands found in the category "${categoryName}".`);
-        return;
-      }
-
-      let msg = `╔══════════════╗\n🔹 ${categoryName.toUpperCase()} COMMANDS 🔹\n╚══════════════╝\n`;
-
-      filteredCommands.forEach((cmd) => {
-        msg += `\n💠 ${cmd.config.name} 💠`;
-      });
-
-      await message.reply(msg);
-    } else {
-      const commandName = args[0].toLowerCase();
-      const command = commands.get(commandName) || commands.get(aliases.get(commandName));
-
-      if (!command) {
-        await message.reply(`Command "${commandName}" not found.`);
-      } else {
-        const configCommand = command.config;
-        const roleText = roleTextToString(configCommand.role);
-        const author = configCommand.author || "Unknown";
-
-        const longDescription = configCommand.longDescription
-          ? configCommand.longDescription.en || "No description"
-          : "No description";
-
-        const guideBody = configCommand.guide?.en || "No guide available.";
-        const usage = guideBody.replace(/{p}/g, prefix).replace(/{n}/g, configCommand.name);
-
-        const response = `╭── NAME ────⭓\n` +
-          `│ ${configCommand.name}\n` +
-          `├── INFO\n` +
-          `│ Description: ${longDescription}\n` +
-          `│ Other names: ${configCommand.aliases ? configCommand.aliases.join(", ") : "Do not have"}\n` +
-          `│ Version: ${configCommand.version || "1.0"}\n` +
-          `│ Role: ${roleText}\n` +
-          `│ Time per command: ${configCommand.countDown || 1}s\n` +
-          `│ Author: ${author}\n` +
-          `├── Usage\n` +
-          `│ ${usage}\n` +
-          `├── Notes\n` +
-          `│ The content inside <ShAn> can be changed\n` +
-          `│ The content inside [a|b|c] is a or b or c\n` +
-          `╰━━━━━━━❖`;
-
-        await message.reply(response);
-      }
+    const prefix = getPrefix(event.threadID);
+    let page = 1;
+    if (args.length > 0) {
+      const p = parseInt(args[0]);
+      if (p >= 1 && p <= 6) page = p;
     }
+
+    const availableCommands = [];
+    for (const [name, cmd] of commands) {
+      if (cmd.config.role > role) continue;
+      availableCommands.push(name);
+    }
+    availableCommands.sort();
+
+    const splitCommands = splitArray(availableCommands, 6);
+    const commandsOnPage = splitCommands[page - 1] || [];
+
+    let msg = `╭──────────── 𝙷𝙴𝙻𝙿 𝙼𝙴𝙽𝚄 ══ Page ${page} ────────╮\n\n`;
+
+    const categories = {};
+    for (const cmdName of commandsOnPage) {
+      const cmd = commands.get(cmdName) || commands.get(aliases.get(cmdName));
+      if (!cmd) continue;
+      const cat = cmd.config.category || "Other";
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat].push(cmdName);
+    }
+
+    for (const catName of Object.keys(categories)) {
+      msg += `♡ ${capitalize(catName)} ♡  \n`;
+      msg += categories[catName]
+        .map((cmd) => `${prefix}${cmd}`)
+        .join("    ") + "\n\n";
+    }
+
+    msg += `╰───────────────────────────────╯  \n`;
+    msg += `Use "${prefix}help ${page === 6 ? 1 : page + 1}" to see more commands!\n`;
+    msg += `𝙳𝚎𝚟: 𝙽𝚒𝚛𝚘𝚋 ꨄ︎\n`;
+
+    const imgUrl = catboxImages[page - 1];
+    await message.reply({
+      body: msg,
+      attachment: await global.utils.getStreamFromURL(imgUrl),
+    });
   },
 };
 
-function roleTextToString(roleText) {
-  switch (roleText) {
-    case 0:
-      return "0 (All users)";
-    case 1:
-      return "1 (Group administrators)";
-    case 2:
-      return "2 (Admin bot)";
-    default:
-      return "Unknown role";
-  }
-    }
+function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+      }
